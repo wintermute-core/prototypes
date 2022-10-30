@@ -1,0 +1,32 @@
+version: "3.8"
+services:
+    healthchecks:
+        image: ghcr.io/linuxserver/healthchecks:version-v1.22.0
+        container_name: healthchecks
+        environment:
+            - PUID=1000
+            - PGID=1000
+            # Site Access endpoint
+            - SITE_ROOT=http://localhost:8000
+            # Site name
+            - SITE_NAME=healthchecks-example
+            - EMAIL_HOST=smtp.gmail.com
+            - EMAIL_PORT=587
+            - FILE__DEFAULT_FROM_EMAIL=/run/secrets/email.txt
+            - FILE__EMAIL_HOST_USER=/run/secrets/email.txt
+            - FILE__EMAIL_HOST_PASSWORD=/run/secrets/email_password.txt
+            - EMAIL_USE_TLS=True
+            - ALLOWED_HOSTS=*
+            - FILE__SUPERUSER_EMAIL=/run/secrets/superuser_email.txt
+            - FILE__SUPERUSER_PASSWORD=/run/secrets/superuser_password.txt
+            - FILE__SECRET_KEY=/run/secrets/secret_key.txt
+        volumes:
+            - ./config:/config
+            - ./email.txt:/run/secrets/email.txt
+            - ./email_password.txt:/run/secrets/email_password.txt
+            - ./superuser_email.txt:/run/secrets/superuser_email.txt
+            - ./superuser_password.txt:/run/secrets/superuser_password.txt
+            - ./secret_key.txt:/run/secrets/secret_key.txt
+        ports:
+            - 8000:8000
+        restart: unless-stopped
