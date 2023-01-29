@@ -35,6 +35,7 @@ Common labels
 */}}
 {{- define "rik.labels" -}}
 helm.sh/chart: {{ include "rik.chart" . }}
+timestamp: "{{ .Values.timestamp }}"
 {{ include "rik.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}

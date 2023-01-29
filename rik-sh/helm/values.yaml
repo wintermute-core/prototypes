@@ -4,11 +4,17 @@
 
 replicaCount: 1
 
-image:
-  repository: nginx
+initContainer:
+  repository: ubuntu
+  tag: "20.04"
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+
+image:
+  repository: ubuntu
+  tag: "20.04"
+  pullPolicy: IfNotPresent
+
+timestamp: "0"
 
 imagePullSecrets: []
 nameOverride: ""

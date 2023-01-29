@@ -1,13 +1,10 @@
-apiVersion: apps/v1
+apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ include "rik.fullname" . }}
   labels:
     {{- include "rik.labels" . | nindent 4 }}
 spec:
-  selector:
-    matchLabels:
-      {{- include "rik.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -25,12 +22,35 @@ spec:
       serviceAccountName: {{ include "rik.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: init
+          image: "{{ .Values.initContainer.repository }}:{{ .Values.initContainer.tag }}"
+          imagePullPolicy: {{ .Values.initContainer.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              export FILE=/work/.upload-completed
+              while [ ! -f $FILE ]; echo "Waiting for $FILE"; do sleep 5; done
+          volumeMounts:
+            - name: work-files
+              mountPath: /work
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              set -x
+              echo "Dummy command"
+              tail -f /dev/null
+          volumeMounts:
+            - name: work-files
+              mountPath: /work
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
@@ -45,3 +65,6 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      volumes:
+        - name: work-files
+          emptyDir: {}

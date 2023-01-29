@@ -12,3 +12,38 @@ function log {
 log "Pilot RIK SH"
 log "Deploying ${NAME} to ${NAMESPACE}"
 
+# cleanup
+helm --debug -n "${NAMESPACE}" uninstall "${NAME}"
+# deploy helm chart
+timestamp=$(date +%s)
+helm --debug -n "${NAMESPACE}" upgrade --install "${NAME}" ./helm --set timestamp=$timestamp
+
+# wait for pod to be in init state
+pod=""
+
+while true; do
+  sleep 5
+  output=$(kubectl -n "${NAMESPACE}" get pods | grep -i "${JOBNAME}" | grep -i "Init:")
+  echo "$output"
+  read -ra array <<<"${output}"
+  pod="${array[0]}"
+  if [[ "${pod}" != "" ]]; then
+    break
+  fi
+  log "Waiting job pod to be in init state..."
+done
+
+log "Detected pod: ${pod}"
+
+echo "Upload content to remote container... ${pod}"
+dir=$(mktemp -d -t rik-XXXXXXXXXX)
+mkdir -p "${dir}"
+tar cfvz "${dir}/archive.tar.gz" *
+echo "Upload archive... ${pod}"
+kubectl -n "${NAMESPACE}" cp "${dir}/archive.tar.gz" "${pod}:/tmp/archive.tar.gz" -c init
+kubectl -n "${NAMESPACE}" exec -t "${pod}" -c init -- bash -c 'cd /work && tar xfvz /tmp/archive.tar.gz && rm -rf /tmp/archive.tar.gz'
+
+log "Setting upload flag ${pod} "
+kubectl -n "${NAMESPACE}" exec -t "${pod}" -c init -- /bin/bash -c "touch /work/.upload-completed"
+
+log "Content uploaded and set lock ${pod}"
