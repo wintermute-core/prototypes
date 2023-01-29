@@ -31,7 +31,12 @@ spec:
             - |
               set -e
               export FILE=/work/.upload-completed
-              while [ ! -f $FILE ]; echo "Waiting for $FILE"; do sleep 5; done
+              until [[ -f $FILE ]]; do
+                echo "Waiting for file $FILE"
+                ls -lahrt "/work"
+                sleep 5
+              done
+              echo "File found $FILE"
           volumeMounts:
             - name: work-files
               mountPath: /work
