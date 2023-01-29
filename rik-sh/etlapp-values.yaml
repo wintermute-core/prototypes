@@ -1,0 +1,9 @@
+#image:
+#  args:
+#    - |
+#      set -x
+#      echo "Dummy command"
+#      tail -f /dev/null
+#  command:
+#    - sh
+#    - -c

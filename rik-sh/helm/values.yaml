@@ -13,6 +13,14 @@ image:
   repository: ubuntu
   tag: "20.04"
   pullPolicy: IfNotPresent
+  command: []
+  args: []
+
+  workVolumePath: "/work"
+
+  # additional volumes to mount
+  additionalVolumes: []
+
 
 timestamp: "0"
 

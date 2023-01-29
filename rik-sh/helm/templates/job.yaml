@@ -31,7 +31,8 @@ spec:
             - |
               set -e
               export FILE=/work/.upload-completed
-              until [[ -f $FILE ]]; do
+              until [ -f $FILE ]
+              do
                 echo "Waiting for file $FILE"
                 ls -lahrt "/work"
                 sleep 5
@@ -46,16 +47,17 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.image.command }}
           command:
-            - sh
-            - -c
-            - |
-              set -x
-              echo "Dummy command"
-              tail -f /dev/null
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.image.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: work-files
-              mountPath: /work
+              mountPath: "{{.Values.image.workVolumePath}}"
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

@@ -16,7 +16,7 @@ log "Deploying ${NAME} to ${NAMESPACE}"
 helm --debug -n "${NAMESPACE}" uninstall "${NAME}"
 # deploy helm chart
 timestamp=$(date +%s)
-helm --debug -n "${NAMESPACE}" upgrade --install "${NAME}" ./helm --set timestamp=$timestamp
+helm --debug -n "${NAMESPACE}" upgrade --install "${NAME}" ./helm --set timestamp=$timestamp -f "${NAME}-values.yaml"
 
 # wait for pod to be in init state
 pod=""
