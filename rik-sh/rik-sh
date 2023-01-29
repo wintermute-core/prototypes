@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
+set -x
+
 export NAME=${NAME:-etlapp}
 export NAMESPACE=${NAMESPACE:-dev}
+export HELM_CHART=${HELM_CHART:-helm}
 
 function log {
   local -r message="$1"
@@ -16,7 +19,7 @@ log "Deploying ${NAME} to ${NAMESPACE}"
 helm --debug -n "${NAMESPACE}" uninstall "${NAME}"
 # deploy helm chart
 timestamp=$(date +%s)
-helm --debug -n "${NAMESPACE}" upgrade --install "${NAME}" ./helm --set timestamp=$timestamp -f "${NAME}-values.yaml"
+helm --debug -n "${NAMESPACE}" upgrade --install "${NAME}" "${HELM_CHART}" --set timestamp=$timestamp -f "${NAME}-values.yaml"
 
 # wait for pod to be in init state
 pod=""

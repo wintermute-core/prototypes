@@ -10,4 +10,5 @@ Implemented flow:
 
 ```
 NAME=app1 NAMESPACE=dev ./rik-sh
+NAME=app1 NAMESPACE=dev HELM_CHART=https://github.com/wintermute-core/prototypes/releases/download/rik-helm-0.0.1/rik-0.1.0.tgz ./rik-sh
 ```
