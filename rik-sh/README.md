@@ -8,3 +8,6 @@ Implemented flow:
 1. Mark init container that content is uploaded
 1. Init container is existing and starting main app
 
+```
+NAME=app1 NAMESPACE=dev ./rik-sh
+```
