@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+export NAME=${NAME:-etlapp}
+export NAMESPACE=${NAMESPACE:-dev}
+
+function log {
+  local -r message="$1"
+  local -r timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+  echo "${timestamp} ${message}"
+}
+
+log "Pilot RIK SH"
+log "Deploying ${NAME} to ${NAMESPACE}"
+
