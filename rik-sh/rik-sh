@@ -6,6 +6,8 @@ export NAME=${NAME:-etlapp}
 export NAMESPACE=${NAMESPACE:-dev}
 export HELM_CHART=${HELM_CHART:-helm}
 
+export UPLOAD_DIR="${UPLOAD_DIR:.}"
+
 function log {
   local -r message="$1"
   local -r timestamp=$(date +"%Y-%m-%d %H:%M:%S")
@@ -41,7 +43,7 @@ log "Detected pod: ${pod}"
 echo "Upload content to remote container... ${pod}"
 dir=$(mktemp -d -t rik-XXXXXXXXXX)
 mkdir -p "${dir}"
-tar cfvz "${dir}/archive.tar.gz" *
+tar cfvz "${dir}/archive.tar.gz" "${UPLOAD_DIR}/*"
 echo "Upload archive... ${pod}"
 kubectl -n "${NAMESPACE}" cp "${dir}/archive.tar.gz" "${pod}:/tmp/archive.tar.gz" -c init
 kubectl -n "${NAMESPACE}" exec -t "${pod}" -c init -- bash -c 'cd /work && tar xfvz /tmp/archive.tar.gz && rm -rf /tmp/archive.tar.gz'
