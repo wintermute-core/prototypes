@@ -7,7 +7,7 @@ export NAMESPACE=${NAMESPACE:-dev}
 export HELM_CHART=${HELM_CHART:-helm}
 
 export UPLOAD_DIR="${UPLOAD_DIR:-$(pwd)}"
-export UPLOAD_PATTERN="${UPLOAD_PATTERN:-*}"
+export UPLOAD_PATTERN="${UPLOAD_PATTERN:-.}"
 
 function log {
   local -r message="$1"
