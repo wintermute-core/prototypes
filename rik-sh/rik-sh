@@ -1,55 +1,137 @@
 #!/usr/bin/env bash
 
-set -x
+# Exit on error, undefined variables, and propagate errors in pipelines
+set -euo pipefail
 
+# Enable command tracing if DEBUG is set
+if [[ "${DEBUG:-false}" == "true" ]]; then
+  set -x
+fi
+
+# Configuration variables with defaults
 export NAME=${NAME:-etlapp}
 export NAMESPACE=${NAMESPACE:-dev}
 export HELM_CHART=${HELM_CHART:-helm}
-
 export UPLOAD_DIR="${UPLOAD_DIR:-$(pwd)}"
 export UPLOAD_PATTERN="${UPLOAD_PATTERN:-.}"
+export MAX_WAIT_TIME=${MAX_WAIT_TIME:-300} # 5 minutes timeout for pod init
 
+# Temporary files
+TEMP_DIR=""
+
+# Function for logging with timestamps
 function log {
-  local -r message="$1"
+  local -r level="$1"
+  local -r message="$2"
   local -r timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-  echo "${timestamp} ${message}"
+  echo "${timestamp} [${level}] ${message}"
 }
 
-log "Pilot RIK SH"
-log "Deploying ${NAME} to ${NAMESPACE}"
+# Function for cleaning up temporary resources
+function cleanup {
+  log "INFO" "Performing cleanup..."
 
-# cleanup
-helm --debug -n "${NAMESPACE}" uninstall "${NAME}"
-# deploy helm chart
+  # Remove temporary directory if it exists
+  if [[ -n "${TEMP_DIR}" && -d "${TEMP_DIR}" ]]; then
+    log "INFO" "Removing temporary directory: ${TEMP_DIR}"
+    rm -rf "${TEMP_DIR}"
+  fi
+
+  log "INFO" "Cleanup completed"
+}
+
+# Function to handle errors
+function handle_error {
+  local -r exit_code=$?
+  local -r line_number=$1
+  log "ERROR" "Error on line ${line_number}, exit code ${exit_code}"
+  cleanup
+  exit ${exit_code}
+}
+
+# Set up error handling trap
+trap 'handle_error ${LINENO}' ERR
+trap cleanup EXIT
+
+# Main execution
+log "INFO" "Pilot RIK SH"
+log "INFO" "Deploying ${NAME} to ${NAMESPACE}"
+
+# Uninstall existing helm chart
+log "INFO" "Cleaning up previous installation if exists..."
+if ! helm --debug -n "${NAMESPACE}" uninstall "${NAME}" 2>/dev/null; then
+  log "INFO" "No previous installation found or uninstallation failed (this may be normal)"
+fi
+
+# Deploy helm chart
+log "INFO" "Deploying helm chart..."
 timestamp=$(date +%s)
-helm --debug -n "${NAMESPACE}" upgrade --install "${NAME}" "${HELM_CHART}" --set timestamp=$timestamp -f "${NAME}-values.yaml"
+if ! helm --debug -n "${NAMESPACE}" upgrade --install "${NAME}" "${HELM_CHART}" \
+     --set timestamp=$timestamp -f "${NAME}-values.yaml"; then
+  log "ERROR" "Helm deployment failed"
+  exit 1
+fi
 
-# wait for pod to be in init state
+# Wait for pod to be in init state
+log "INFO" "Waiting for pod to enter init state..."
 pod=""
+wait_time=0
+interval=5
 
-while true; do
-  sleep 5
-  output=$(kubectl -n "${NAMESPACE}" get pods | grep -i "${JOBNAME}" | grep -i "Init:")
-  echo "$output"
-  read -ra array <<<"${output}"
-  pod="${array[0]}"
-  if [[ "${pod}" != "" ]]; then
+while [[ -z "${pod}" && ${wait_time} -lt ${MAX_WAIT_TIME} ]]; do
+  sleep ${interval}
+  wait_time=$((wait_time + interval))
+
+  output=$(kubectl -n "${NAMESPACE}" get pods | grep -i "${JOBNAME:-${NAME}}" | grep -i "Init:" || true)
+
+  if [[ -n "${output}" ]]; then
+    read -ra array <<< "${output}"
+    pod="${array[0]}"
+    log "INFO" "Pod found in init state: ${pod}"
     break
   fi
-  log "Waiting job pod to be in init state..."
+
+  log "INFO" "Waiting for job pod to be in init state... (${wait_time}s/${MAX_WAIT_TIME}s)"
 done
 
-log "Detected pod: ${pod}"
+if [[ -z "${pod}" ]]; then
+  log "ERROR" "Timed out waiting for pod to enter init state"
+  exit 1
+fi
 
-echo "Upload content to remote container... ${pod}"
-dir=$(mktemp -d -t rik-XXXXXXXXXX)
-mkdir -p "${dir}"
-tar cfvz "${dir}/archive.tar.gz" -C "${UPLOAD_DIR}" ${UPLOAD_PATTERN}
-echo "Upload archive... ${pod}"
-kubectl -n "${NAMESPACE}" cp "${dir}/archive.tar.gz" "${pod}:/tmp/archive.tar.gz" -c init
-kubectl -n "${NAMESPACE}" exec -t "${pod}" -c init -- bash -c 'cd /work && tar xfvz /tmp/archive.tar.gz && rm -rf /tmp/archive.tar.gz'
+log "INFO" "Detected pod: ${pod}"
 
-log "Setting upload flag ${pod} "
-kubectl -n "${NAMESPACE}" exec -t "${pod}" -c init -- /bin/bash -c "touch /work/.upload-completed"
+# Create temporary directory for archive
+log "INFO" "Preparing files for upload..."
+TEMP_DIR=$(mktemp -d -t rik-XXXXXXXXXX)
+log "INFO" "Created temporary directory: ${TEMP_DIR}"
 
-log "Content uploaded and set lock ${pod}"
+# Create archive of files to upload
+if ! tar cfz "${TEMP_DIR}/archive.tar.gz" -C "${UPLOAD_DIR}" ${UPLOAD_PATTERN}; then
+  log "ERROR" "Failed to create archive"
+  exit 1
+fi
+
+# Upload archive to the container
+log "INFO" "Uploading archive to pod: ${pod}"
+if ! kubectl -n "${NAMESPACE}" cp "${TEMP_DIR}/archive.tar.gz" "${pod}:/tmp/archive.tar.gz" -c init; then
+  log "ERROR" "Failed to upload archive to pod"
+  exit 1
+fi
+
+# Extract the archive in the container
+log "INFO" "Extracting archive in pod..."
+if ! kubectl -n "${NAMESPACE}" exec -t "${pod}" -c init -- bash -c 'cd /work && tar xfz /tmp/archive.tar.gz && rm -f /tmp/archive.tar.gz'; then
+  log "ERROR" "Failed to extract archive in pod"
+  exit 1
+fi
+
+# Set upload completion flag
+log "INFO" "Setting upload completion flag..."
+if ! kubectl -n "${NAMESPACE}" exec -t "${pod}" -c init -- /bin/bash -c "touch /work/.upload-completed"; then
+  log "ERROR" "Failed to set upload completion flag"
+  exit 1
+fi
+
+log "SUCCESS" "Content uploaded and completion flag set for pod: ${pod}"
+exit 0
